@@ -6486,7 +6486,9 @@ static void gai_args_free(struct getaddrinfo_args *args) {
         free0(args->service);
         free0(args->node);
         free0(args->hints);
-        freeaddrinfo(args->res);
+        if (args->res) {
+            freeaddrinfo(args->res);
+        }
         if (args->fds[0]) {
             must(close(args->fds[0]) == 0);
         }
