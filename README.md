@@ -472,6 +472,25 @@ You can find more [examples here](examples).
 
 Linux, Mac, and FreeBSD supports all features.
 
+The following table shows the context switching method that is used for each
+platform and architecture. The assembly method is selected based on the target
+architecture, and when assembly is not available for the current architecture,
+Neco falls back to `ucontext` (or Asyncify for WebAssembly).
+
+| Platform     | Assembly Method              | Fallback |
+|--------------|------------------------------|----------|
+| Linux        | ARM/ARM64/x86_64/i386/riscv  | ucontext |
+| Mac          | ARM64/x86_64                 | ucontext |
+| BSD          | ARM64/x86_64                 | ucontext |
+| Windows      | x86_64                       | N/A      |
+| WebAssembly  | N/A                          | Asyncify |
+
+The assembly code comes from the embedded [sco](https://github.com/tidwall/sco)
+and [llco](https://github.com/tidwall/llco) packages, which use assembly from
+the [minicoro](https://github.com/edubart/minicoro) library (MIT-0). The
+minicoro implementation is in turn inspired by
+[Lua Coco](https://coco.luajit.org/index.html) by Mike Pall.
+
 Windows and WebAssembly support the core coroutine features, but have some key
 limitiations, mostly with working with file descriptors and networking.
 This is primarly because the Neco event queue works with epoll and kqueue,
