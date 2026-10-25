@@ -3219,6 +3219,7 @@ static int evqueue(void) {
 #define bind0 bind
 #define listen0 listen
 #define setsockopt0 setsockopt
+#define getsockopt0 getsockopt
 #define nanosleep0 nanosleep
 #define fcntl0 fcntl
 #define pthread_create0 pthread_create
@@ -5446,6 +5447,16 @@ int neco_accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
     return neco_accept_dl(sockfd, addr, addrlen, INT64_MAX);
 }
 
+// Returns the pending error on a socket, or zero if there is none.
+static int sockerr(int fd) {
+    int err = 0;
+    socklen_t errlen = sizeof(err);
+    if (getsockopt0(fd, SOL_SOCKET, SO_ERROR, (void*)&err, &errlen) == -1) {
+        return errno;
+    }
+    return err;
+}
+
 static int connect_dl(int fd, const struct sockaddr *addr, socklen_t addrlen, 
     int64_t deadline)
 {
@@ -5483,13 +5494,25 @@ static int connect_dl(int fd, const struct sockaddr *addr, socklen_t addrlen,
                 errno = ECONNREFUSED;
                 break;
             case EINPROGRESS:
+            case EALREADY:
                 // EINPROGRESS means the connection is in progress and may
                 // take a while. We are allowed to add this file descriptor
                 // to an event queue and wait for the connection to be ready.
                 // This can be done by waiting on a write event. 
                 // printf("D\n");
+                // EALREADY means a previous attempt is still in progress,
+                // which can happen if the wait returned early.
                 inprog = true;
                 cowait(fd, EVWRITE, deadline);
+                // The connection attempt may have completed with an error.
+                // On Linux a subsequent connect() will report that error,
+                // but on Mac/BSD it returns EISCONN instead, which would be
+                // mistaken for success. Check the socket error directly.
+                ret = sockerr(fd);
+                if (ret != 0) {
+                    errno = ret;
+                    return -1;
+                }
                 continue;
             case EINTR:  // Interrupted. Just try again.
             case ENOMEM: // Mac OS can sometimes return ENOMEM (bug)

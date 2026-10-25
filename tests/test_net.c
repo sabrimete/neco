@@ -533,6 +533,54 @@ void test_net_connect_errors(void) {
     expect(neco_start(co_net_connect_errors, 0), NECO_OK);
 }
 
+void co_net_dial_refused(int argc, void *argv[]) {
+    (void)argc; (void)argv;
+    // Port 1 (tcpmux) is privileged and practically never listened on.
+    // A refused connection must be reported as an error, not as a
+    // connected socket.
+    int fd = neco_dial("tcp4", "127.0.0.1:1");
+    assert(fd == -1 && errno == ECONNREFUSED);
+    fd = neco_dial("tcp6", "[::1]:1");
+    assert(fd == -1 && errno == ECONNREFUSED);
+}
+
+void test_net_dial_refused(void) {
+    expect(neco_start(co_net_dial_refused, 0), NECO_OK);
+}
+
+void co_net_connect_evfail_server(int argc, void *argv[]) {
+    assert(argc == 1);
+    int sockfd = *(int*)argv[0];
+    int fd = neco_accept(sockfd, 0, 0);
+    assert(fd > 0);
+    close(fd);
+}
+
+void co_net_connect_evfail(int argc, void *argv[]) {
+    (void)argc; (void)argv;
+    int sockfd = neco_serve("tcp4", "127.0.0.1:19771");
+    assert(sockfd > 0);
+    expect(neco_start(co_net_connect_evfail_server, 1, &sockfd), NECO_OK);
+    // Fail the event queue creation so that the wait returns early while
+    // the connection is still in progress. The connect must still succeed.
+    neco_fail_evqueue_counter = 1;
+    int fd = neco_dial("tcp4", "127.0.0.1:19771");
+    neco_fail_evqueue_counter = 0;
+    assert(fd > 0);
+    close(fd);
+    // A failure to read the socket error must be reported.
+    neco_fail_getsockopt_counter = 1;
+    neco_fail_getsockopt_error = EBADF;
+    fd = neco_dial("tcp4", "127.0.0.1:19771");
+    neco_fail_getsockopt_counter = 0;
+    assert(fd == -1 && errno == EBADF);
+    close(sockfd);
+}
+
+void test_net_connect_evfail(void) {
+    expect(neco_start(co_net_connect_evfail, 0), NECO_OK);
+}
+
 void test_net_setnonblock(void) {
     int fds[2];
     assert(pipe(fds) == 0);
@@ -566,6 +614,8 @@ int main(int argc, char **argv) {
     do_test(test_net_autoclose_queue);
     do_test(test_net_write_errors);
     do_test(test_net_connect_errors);
+    do_test(test_net_dial_refused);
+    do_test(test_net_connect_evfail);
     do_test(test_net_setnonblock);
 }
 #endif

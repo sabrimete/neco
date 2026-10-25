@@ -15,6 +15,7 @@
 #undef bind0
 #undef listen0
 #undef setsockopt0
+#undef getsockopt0
 #undef nanosleep0
 #undef fcntl0
 #undef evqueue0
@@ -72,6 +73,9 @@ FAIL_CALL(int, listen0, listen, -1, EADDRINUSE,
     (sockfd, backlog))
 FAIL_CALL(int, setsockopt0, setsockopt, -1, EBADF,
     (int sockfd, int level, int optname, const void *optval, socklen_t optlen), 
+    (sockfd, level, optname, optval, optlen))
+FAIL_CALL(int, getsockopt0, getsockopt, -1, EBADF,
+    (int sockfd, int level, int optname, void *optval, socklen_t *optlen), 
     (sockfd, level, optname, optval, optlen))
 FAIL_CALL(int, nanosleep0, nanosleep, -1, EINTR,
     (const struct timespec *req, struct timespec *rem), 
